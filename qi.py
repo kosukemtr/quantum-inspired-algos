@@ -4,7 +4,7 @@ from sample_matrix import MatrixSampler
 
 def qi_solver(A, b, d, n_iter):
     """
-    We try to find a vector y such that x = A^\dagger y is the solution to Ax=b
+    We try to find a vector y such that x = A^\dagger y is the solution to argmin_x ||Ax-b||
     d is the number of samples used in approximating inner products
     """
     sampler = MatrixSampler(A)

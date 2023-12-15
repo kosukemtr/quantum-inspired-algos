@@ -47,7 +47,7 @@ def qi_solver(A, b, d, n_iter):
                 b[row_index] - 
                         A[row_index, :].dot(np.transpose(A) @ y_history[-1])
             ) * e
-        print(row_index, y_new)
+        # print(row_index, y_new)
         y_history.append(y_new)
 
     return y_history

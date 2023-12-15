@@ -4,8 +4,19 @@ from sample_matrix import MatrixSampler
 
 def qi_solver(A, b, d, n_iter):
     """
-    We try to find a vector y such that x = A^\dagger y is the solution to argmin_x ||Ax-b||
-    d is the number of samples used in approximating inner products
+    Solves for x in the least squares problem: argmin_x ||Ax - b|| based on arXiv: 2103.10309.
+    
+    This function seeks to find a vector 'y' such that 'x = A^T y' provides the solution. 
+    
+    Parameters:
+    - A: Matrix involved in the least squares problem.
+    - b: Vector representing the target values in the least squares problem.
+    - d: The number of samples used for approximating inner products. 
+         Increasing 'd' can improve the approximation accuracy.
+         d = O(kappa_F^2/epsilon^2) where kappa_F = ||A||_F/||A^+|| and epsilon is error is recommended in the reference.
+    - n_iter: The number of iterations to perform in the algorithm.
+              More iterations can lead to a more accurate solution but take longer to compute.
+              n = O(kappa_F^2 log(1/epsilon)) is recommended.
     """
     sampler = MatrixSampler(A)
     y0 = np.zeros(A.shape[0])
@@ -18,7 +29,7 @@ def qi_solver(A, b, d, n_iter):
         if d != np.inf:
             col_indices = sampler.sample_col_index(d)
             y_new = y_history[-1] + \
-                1/np.sqrt(sampler.row_norms[row_index]) * \
+                1/sampler.row_norms[row_index] * \
             (
                 b[row_index] - \
                 (

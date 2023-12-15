@@ -29,7 +29,7 @@ def qi_solver(A, b, d, n_iter):
         if d != np.inf:
             col_indices = sampler.sample_col_index(d)
             y_new = y_history[-1] + \
-                1/sampler.row_norms[row_index] * \ 
+                1/sampler.row_norms[row_index] * \
             (
                 b[row_index] - \
                 (
@@ -57,15 +57,14 @@ if __name__ == "__main__":
     # Step 1: Create test matrix A and vector b
     # np.random.seed(0)  # for reproducibility
     rng = np.random.default_rng(seed=1)
-    A = rng.random((3, 2))  # example dimensions
-    print(A)
-    b = rng.random(3)
+    A = rng.random((10, 5))  # example dimensions
+    b = rng.random(10)
 
     # Step 2: Find the true solution using pseudo-inverse
     x_true = np.linalg.pinv(A) @ b
 
     # Step 3: Run qi_solver to get approximate solutions
-    d = 100000 # Example parameter, adjust as needed
+    d = 1000 # Example parameter, adjust as needed
     n_iter = 1000  # Example number of iterations
     y_history = qi_solver(A, b, d, n_iter)
 
@@ -75,10 +74,26 @@ if __name__ == "__main__":
         x_approx = np.transpose(A) @ y
         error = np.linalg.norm(x_true - x_approx)
         errors.append(error)
-    print(x_true)
-    print(np.transpose(A) @ y_history[-1])
+    print("true solution", x_true)
+    print("qi single trial solution", np.transpose(A) @ y_history[-1])
     # Step 5: Plot the error evolution
-    plt.plot(range(len(y_history)), errors)
+    plt.plot(range(len(y_history)), errors, label="single trial")
+
+    n_trials = 100
+    y_history_list = np.zeros((n_trials, len(y_history), len(y_history[0])))
+    for i in range(n_trials):
+        y_history_list[i] = np.array(qi_solver(A,b,d,n_iter))
+    averaged_y_history = np.sum(y_history_list, axis=0)/n_trials
+    # Step 4: Calculate errors over iterations
+    errors = []
+    for y in averaged_y_history:
+        x_approx = np.transpose(A) @ y
+        error = np.linalg.norm(x_true - x_approx)
+        errors.append(error)
+    print(f"qi {n_trials} trials solution", np.transpose(A) @ averaged_y_history[-1])
+    # Step 5: Plot the error evolution
+    plt.plot(range(len(y_history)), errors, label=f"average over {n_trials} trials")
     plt.xlabel('Iteration')
     plt.ylabel('Error')
+    plt.legend()
     plt.savefig("test.png")

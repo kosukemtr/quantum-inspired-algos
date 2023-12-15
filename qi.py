@@ -29,7 +29,7 @@ def qi_solver(A, b, d, n_iter):
         if d != np.inf:
             col_indices = sampler.sample_col_index(d)
             y_new = y_history[-1] + \
-                1/sampler.row_norms[row_index] * \
+                1/sampler.row_norms[row_index] * \ 
             (
                 b[row_index] - \
                 (

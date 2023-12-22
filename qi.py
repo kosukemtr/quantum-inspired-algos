@@ -2,11 +2,11 @@
 import numpy as np
 from sample_matrix import MatrixSampler
 
-def qi_solver(A, b, d, n_iter):
+def qi_lstsq_solver(A, b, d, n_iter):
     """
     Solves for x in the least squares problem: argmin_x ||Ax - b|| based on arXiv: 2103.10309.
     
-    This function seeks to find a vector 'y' such that 'x = A^T y' provides the solution. 
+    This function seeks to find a vector 'y' such that 'x = A^T y' provides the solution and returns history of y.
     
     Parameters:
     - A: Matrix involved in the least squares problem.
@@ -47,53 +47,60 @@ def qi_solver(A, b, d, n_iter):
                 b[row_index] - 
                         A[row_index, :].dot(np.transpose(A) @ y_history[-1])
             ) * e
-        # print(row_index, y_new)
         y_history.append(y_new)
 
     return y_history
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    # Step 1: Create test matrix A and vector b
-    # np.random.seed(0)  # for reproducibility
-    rng = np.random.default_rng(seed=1)
-    A = rng.random((10, 5))  # example dimensions
-    b = rng.random(10)
+def sample_lstsq_solution(A, b, d, n_iter, seed=None):
+    """
+    Solves for x in the least squares problem: argmin_x ||Ax - b|| based on arXiv: 2103.10309.
+    
+    This function implements SQ(x), L2-norm sampling of the solution vector x,
+    i.e., it returns a random index from the probability distribution proportional to |x[i]|^2
+    
+    Parameters:
+    - A: Matrix involved in the least squares problem.
+    - b: Vector representing the target values in the least squares problem.
+    - d: The number of samples used for approximating inner products. 
+         Increasing 'd' can improve the approximation accuracy.
+         d = O(kappa_F^2/epsilon^2) where kappa_F = ||A||_F/||A^+|| and epsilon is error is recommended in the reference.
+    - n_iter: The number of iterations to perform in the algorithm.
+              More iterations can lead to a more accurate solution but take longer to compute.
+              n = O(kappa_F^2 log(1/epsilon)) is recommended.
+    """
+    y = qi_lstsq_solver(A, b, d, n_iter)[-1]
+    def sampler(vector):
+        """ Sampler for a vector, returns a random index based on |vector[i]|^2 """
+        probabilities = np.abs(vector) ** 2
+        probabilities /= np.sum(probabilities)
+        return lambda: np.random.choice(len(vector), p=probabilities)
+    sampler_list = [sampler(A[i]) for i in range(len(A))]
+    return _lcv(y, A, np.linalg.norm(A, axis=1), sampler_list, seed)
 
-    # Step 2: Find the true solution using pseudo-inverse
-    x_true = np.linalg.pinv(A) @ b
 
-    # Step 3: Run qi_solver to get approximate solutions
-    d = 1000 # Example parameter, adjust as needed
-    n_iter = 1000  # Example number of iterations
-    y_history = qi_solver(A, b, d, n_iter)
+def _lcv(coef_list, v_list, v_norm_list, v_sampler_list, seed=None):
+    """
+    Linear combination of vectors.
+    Samples from u = \sum_i c_i v_i using rejection sampling, where c is coef and v is a vector.
+    More spcifically, this function outputs random indices according to probability distribution |u[i]|^2
+    Paramters:
+        coef_list: coeffcient list
+        v_list: list of vectors
+        v_norm_list: list of norms of vectors
+        v_samler_list: samplers of v. They need to be callables v_sampler() which samples a random index from a probability distribution |v[i]|^2.
+    """
+    if len(coef_list) != len(v_list):
+        raise ValueError()
+    while True:
+        rng = np.random.default_rng(seed)
+        coef_index = rng.choice(len(coef_list), p= coef_list ** 2 * v_norm_list / np.sum(coef_list ** 2 * v_norm_list))
+        index = v_sampler_list[coef_index]()
+        accept_prob = \
+            np.sum(coef_list*v_list[:,index])**2 / len(coef_list) /\
+                  np.linalg.norm(coef_list*v_list[:,index])**2
+        if accept_prob > 1:
+            raise ValueError()
+        accept = rng.uniform() < accept_prob
+        if accept:
+            return index
 
-    # Step 4: Calculate errors over iterations
-    errors = []
-    for y in y_history:
-        x_approx = np.transpose(A) @ y
-        error = np.linalg.norm(x_true - x_approx)
-        errors.append(error)
-    print("true solution", x_true)
-    print("qi single trial solution", np.transpose(A) @ y_history[-1])
-    # Step 5: Plot the error evolution
-    plt.plot(range(len(y_history)), errors, label="single trial")
-
-    n_trials = 100
-    y_history_list = np.zeros((n_trials, len(y_history), len(y_history[0])))
-    for i in range(n_trials):
-        y_history_list[i] = np.array(qi_solver(A,b,d,n_iter))
-    averaged_y_history = np.sum(y_history_list, axis=0)/n_trials
-    # Step 4: Calculate errors over iterations
-    errors = []
-    for y in averaged_y_history:
-        x_approx = np.transpose(A) @ y
-        error = np.linalg.norm(x_true - x_approx)
-        errors.append(error)
-    print(f"qi {n_trials} trials solution", np.transpose(A) @ averaged_y_history[-1])
-    # Step 5: Plot the error evolution
-    plt.plot(range(len(y_history)), errors, label=f"average over {n_trials} trials")
-    plt.xlabel('Iteration')
-    plt.ylabel('Error')
-    plt.legend()
-    plt.savefig("test.png")
